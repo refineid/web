@@ -1,3 +1,20 @@
+# Repository instructions
+
+## Worktree policy
+
+- Reading does not require a worktree; writing does. The main checkout is
+  never edited directly. Before writing code or modifying files for any task,
+  create a dedicated git worktree strictly under `../wt/`
+  (e.g., `../wt/refineid-web-<topic>`) on a `<topic>` branch. Never
+  work directly on `main` or modify files in the main checkout.
+- All worktrees MUST live strictly under `../wt/`, never loose beside
+  repositories or in parent directories.
+- Never put a git worktree under `/tmp`. It is cleared on reboot and takes the
+  branch's only checkout with it.
+- One task, one worktree, one branch (`<topic>`), one pull request per branch.
+- Merge the pull request after mandatory local verification and review pass,
+  then remove the worktree and branch and fast-forward `main`.
+
 ## Record deferred findings
 
 - While working, file a GitHub issue in the owning repository for each
