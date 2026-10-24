@@ -1,0 +1,20 @@
+[package]
+name = "refineid-wasm-requester"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+getrandom = "0.3"
+refineid-rapp = { version = "26.9.26", path = "../../../refineid-core/crates/rapp" }
+serde_json = "1"
+sha2 = "0.11.0"
+wasm-bindgen = "0.2.129"
+
+# WebAssembly randomness comes from WebCrypto. The feature unifies onto the
+# getrandom copy that snow resolves, so no core changes are needed; the
+# matching `--cfg getrandom_backend="wasm_js"` lives in .cargo/config.toml.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }

@@ -43,3 +43,4 @@
 - Link newly filed or reused issues in the task handoff. If issue creation is
   unavailable, preserve a sanitized finding locally and report that it was
   not filed; never silently discard it.
+

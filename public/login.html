@@ -1,0 +1,58 @@
+<!-- Copyright 2026 Petri Koistinen. Licensed under the Apache License, Version 2.0. -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RefineID demo login</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 560px;
+        margin: 40px auto;
+        padding: 0 16px;
+      }
+      button {
+        font-size: 15px;
+        padding: 8px 16px;
+        margin-right: 8px;
+      }
+      input[type="text"] {
+        width: 100%;
+        box-sizing: border-box;
+        margin: 4px 0 12px;
+      }
+      #result {
+        margin-top: 16px;
+        padding: 12px;
+        background: #f4f4f4;
+        white-space: pre-wrap;
+      }
+      #result.logged-in {
+        background: #dff0d8;
+      }
+      #result.error {
+        background: #f2dede;
+      }
+      .note {
+        color: #555;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>RefineID demo login</h1>
+    <p class="note">
+      Demo relying party: logs in through the RefineID extension over an approved RAPP session. No
+      card is involved yet; approval proves pair possession plus explicit consent at the proxy.
+    </p>
+    <label for="relay">Relay URL</label>
+    <input type="text" id="relay" value="ws://127.0.0.1:9443" spellcheck="false" />
+    <div>
+      <button id="login">Login with RefineID</button>
+      <button id="logout" disabled>Logout</button>
+    </div>
+    <div id="result">Not logged in. Pair your proxy first (extension popup shows the code).</div>
+    <script src="login.js"></script>
+  </body>
+</html>

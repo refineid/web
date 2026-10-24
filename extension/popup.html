@@ -1,0 +1,81 @@
+<!-- Copyright 2026 Petri Koistinen. Licensed under the Apache License, Version 2.0. -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>RefineID</title>
+    <style>
+      body {
+        font:
+          13px system-ui,
+          sans-serif;
+        margin: 12px;
+        min-width: 300px;
+      }
+      h1 {
+        font-size: 15px;
+        margin: 0 0 8px;
+      }
+      .row {
+        margin: 8px 0;
+      }
+      input[type="text"] {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      button {
+        margin-right: 6px;
+      }
+      #code {
+        font-size: 28px;
+        letter-spacing: 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      #status {
+        white-space: pre-wrap;
+        background: #f4f4f4;
+        padding: 8px;
+        min-height: 40px;
+      }
+      .error {
+        color: #a00;
+      }
+      label {
+        display: block;
+        margin: 4px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>RefineID</h1>
+    <div class="row">
+      <label for="relay">Relay URL</label>
+      <input type="text" id="relay" value="ws://127.0.0.1:9443" spellcheck="false" />
+    </div>
+    <div class="row">
+      <button id="pair">Pair new phone</button>
+      <button id="cancel">Cancel</button>
+      <button id="close">Close session</button>
+    </div>
+    <div class="row" id="codeRow" hidden>
+      <div>Enter on the phone:</div>
+      <div id="code"></div>
+      <div id="peer"></div>
+    </div>
+    <div class="row" id="grantsRow" hidden>
+      <div>Grant to this phone:</div>
+      <label><input type="checkbox" id="grantAuth" checked /> Login (authentication)</label>
+      <label><input type="checkbox" id="grantSign" checked /> Signing (document-signing)</label>
+      <button id="grants">Confirm grants</button>
+    </div>
+    <div class="row">
+      <div>Pairs:</div>
+      <div id="pairs"><em>none yet</em></div>
+    </div>
+    <div class="row">
+      <div>Status:</div>
+      <div id="status">starting...</div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

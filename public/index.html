@@ -1,0 +1,1138 @@
+<!-- Copyright 2026 Petri Koistinen. Licensed under the Apache License, Version 2.0. -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>RefineID WebUSB feasibility probe (reader access only)</title>
+    <style>
+      :root {
+        --fg: #1a1a1a;
+        --bg: #fff;
+        --muted: #5a5a5a;
+        --line: #d8d8d8;
+        --ok: #0a6b2d;
+        --warn: #8a5200;
+        --err: #a41212;
+        --panel: #f6f6f6;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #e8e8e8;
+          --bg: #141414;
+          --muted: #a8a8a8;
+          --line: #3a3a3a;
+          --ok: #6fdc8c;
+          --warn: #f0b429;
+          --err: #ff8a8a;
+          --panel: #1e1e1e;
+        }
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+        margin: 0 auto;
+        max-width: 46rem;
+        padding: 1rem 1.25rem 3rem;
+        line-height: 1.45;
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 0.25rem;
+      }
+      p.small,
+      li.small {
+        font-size: 0.9rem;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      section.panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        margin: 0.75rem 0;
+      }
+      section.panel h2 {
+        font-size: 1rem;
+        margin: 0 0 0.5rem;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin: 0.4rem 0;
+      }
+      button {
+        font: inherit;
+        padding: 0.4rem 0.9rem;
+        border-radius: 0.4rem;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--fg);
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      button.primary {
+        border-width: 2px;
+      }
+      select,
+      textarea {
+        font: inherit;
+        color: var(--fg);
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 0.4rem;
+      }
+      select {
+        padding: 0.3rem 0.5rem;
+        max-width: 100%;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.82rem;
+        margin: 0.4rem 0;
+      }
+      #log {
+        max-height: 16rem;
+        overflow-y: auto;
+      }
+      #report {
+        width: 100%;
+        min-height: 12rem;
+        box-sizing: border-box;
+        font-size: 0.78rem;
+        font-family: ui-monospace, monospace;
+      }
+      .ok {
+        color: var(--ok);
+      }
+      .warn {
+        color: var(--warn);
+      }
+      .err {
+        color: var(--err);
+      }
+      .stage {
+        font-weight: 600;
+      }
+      code {
+        font-size: 0.88em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>RefineID WebUSB feasibility probe</h1>
+    <p class="small muted">
+      First milestone only: can an ordinary web page even <em>claim</em> a reader interface? This
+      page enumerates USB descriptors and attempts one interface claim. It never sends APDUs,
+      performs data or control transfers, powers a card, asks for a PIN, signs anything, or reads
+      USB serial numbers. A permission grant is <strong>not</strong> proof of usable card access.
+    </p>
+
+    <section class="panel" aria-label="Capabilities">
+      <h2>1. Capabilities</h2>
+      <pre id="caps">Checking...</pre>
+    </section>
+
+    <section class="panel" aria-label="Connection">
+      <h2>2. Connect</h2>
+      <div class="row">
+        <button id="btnConnect" type="button" class="primary">Connect...</button>
+        <button id="btnDisconnect" type="button" disabled>Disconnect</button>
+      </div>
+      <p class="small muted">
+        The browser shows its own device chooser. Cancelling it is a normal outcome and is reported
+        below. Nothing happens until you click.
+      </p>
+    </section>
+
+    <section class="panel" aria-label="Descriptors">
+      <h2>3. Device descriptors</h2>
+      <pre id="desc">No device selected.</pre>
+    </section>
+
+    <section class="panel" aria-label="Claim test">
+      <h2>4. Interface claim test</h2>
+      <div class="row">
+        <label class="small" for="selConfig">Configuration</label>
+        <select id="selConfig" disabled></select>
+        <label class="small" for="selInterface">Interface</label>
+        <select id="selInterface" disabled></select>
+        <button id="btnClaim" type="button" disabled>Claim selected interface</button>
+      </div>
+      <p class="small muted">
+        Pick the reader interface, then attempt the claim. The exact stage and exception name are
+        reported. Interfaces whose class is on the WebUSB protected list (for example Smart Card
+        <code>0x0B</code>) are expected to fail with <code>SecurityError</code> on an ordinary page.
+      </p>
+    </section>
+
+    <section class="panel" aria-label="Stages and errors">
+      <h2>5. Stages and errors</h2>
+      <pre id="log">Idle.</pre>
+    </section>
+
+    <section class="panel" aria-label="Diagnostic report">
+      <h2>6. Diagnostic report (copyable, never stored)</h2>
+      <div class="row">
+        <button id="btnCopy" type="button">Copy report</button>
+        <span id="copyStatus" class="small muted" role="status"></span>
+      </div>
+      <textarea
+        id="report"
+        readonly
+        placeholder="The report appears here after each stage. It holds capabilities, descriptors, stages, and errors only."
+      ></textarea>
+    </section>
+
+    <script>
+      (function () {
+        "use strict";
+
+        /* ---------- Pure helpers (no DOM, no USB) ---------- */
+
+        // Protected interface classes, WebUSB spec section "protected interface classes".
+        // Ordinary pages cannot claim these; only Isolated Web Apps with the
+        // "usb-unrestricted" permission policy may.
+        var PROTECTED_CLASSES = {
+          0x01: "Audio",
+          0x03: "HID",
+          0x08: "Mass Storage",
+          0x09: "Hub",
+          0x0b: "Smart Card",
+          0x0e: "Video",
+          0x10: "Audio/Video Devices",
+          0xe0: "Wireless Controller",
+        };
+
+        function hex2(n) {
+          var s = (n & 0xff).toString(16).toUpperCase();
+          return "0x" + (s.length < 2 ? "0" + s : s);
+        }
+
+        function hex4(n) {
+          var s = (n & 0xffff).toString(16).toUpperCase();
+          while (s.length < 4) {
+            s = "0" + s;
+          }
+          return "0x" + s;
+        }
+
+        function protectedClassName(code) {
+          return Object.prototype.hasOwnProperty.call(PROTECTED_CLASSES, code)
+            ? PROTECTED_CLASSES[code]
+            : null;
+        }
+
+        // Distinct explanations for the two independent capability gates.
+        function evaluateCapabilities(env) {
+          var secure = !!env.isSecureContext;
+          var hasUsb = !!env.hasUsb;
+          var verdict, explanation;
+          if (!secure && !hasUsb) {
+            verdict = "blocked";
+            explanation =
+              "Insecure origin AND no WebUSB API: serve this page from " +
+              "https:// or http://localhost (a secure context) in a browser that " +
+              "implements WebUSB (Chrome 61+). Firefox has no WebUSB implementation.";
+          } else if (!secure) {
+            verdict = "blocked";
+            explanation =
+              "Insecure origin: WebUSB requires a secure context. " +
+              "http://localhost (loopback) counts as secure; an arbitrary http:// LAN " +
+              "URL does not. Serve over https:// or use http://localhost:8080.";
+          } else if (!hasUsb) {
+            verdict = "blocked";
+            explanation =
+              "Unsupported browser: navigator.usb is missing. WebUSB is " +
+              "implemented in Chrome/Edge/Opera (Chrome 61+); Firefox and Safari " +
+              "have no WebUSB implementation, so this prototype cannot run there.";
+          } else {
+            verdict = "ready";
+            explanation = "Secure context with navigator.usb present. You may click Connect.";
+          }
+          return {
+            isSecureContext: secure,
+            hasWebUsb: hasUsb,
+            verdict: verdict,
+            explanation: explanation,
+          };
+        }
+
+        // Summarize one alternate setting. Reads class/subclass/protocol, endpoints.
+        // Never reads device.serialNumber (not passed in, not accessed).
+        function summarizeAlternate(alt) {
+          var endpoints = (alt.endpoints || []).map(function (ep) {
+            return { endpointNumber: ep.endpointNumber, direction: ep.direction, type: ep.type };
+          });
+          return {
+            interfaceClass: alt.interfaceClass,
+            interfaceClassHex: hex2(alt.interfaceClass),
+            protectedClass: protectedClassName(alt.interfaceClass),
+            interfaceSubclass: alt.interfaceSubclass,
+            interfaceSubclassHex: hex2(alt.interfaceSubclass),
+            interfaceProtocol: alt.interfaceProtocol,
+            interfaceProtocolHex: hex2(alt.interfaceProtocol),
+            endpoints: endpoints,
+          };
+        }
+
+        function summarizeDevice(device) {
+          var configs = (device.configurations || []).map(function (cfg) {
+            return {
+              configurationValue: cfg.configurationValue,
+              interfaces: (cfg.interfaces || []).map(function (iface) {
+                return {
+                  interfaceNumber: iface.interfaceNumber,
+                  alternates: (iface.alternates || []).map(summarizeAlternate),
+                };
+              }),
+            };
+          });
+          var protectedFound = [];
+          configs.forEach(function (cfg) {
+            cfg.interfaces.forEach(function (iface) {
+              iface.alternates.forEach(function (alt) {
+                if (alt.protectedClass) {
+                  protectedFound.push({
+                    interfaceNumber: iface.interfaceNumber,
+                    classHex: alt.interfaceClassHex,
+                    className: alt.protectedClass,
+                  });
+                }
+              });
+            });
+          });
+          return {
+            vendorId: hex4(device.vendorId),
+            productId: hex4(device.productId),
+            // Deliberately absent: serialNumber is never read or reported.
+            productName: device.productName || null,
+            manufacturerName: device.manufacturerName || null,
+            opened: !!device.opened,
+            activeConfigurationValue: device.configuration
+              ? device.configuration.configurationValue
+              : null,
+            configurations: configs,
+            protectedAlternates: protectedFound,
+          };
+        }
+
+        function buildReport(state) {
+          return JSON.stringify(
+            {
+              generatedAt: new Date().toISOString(),
+              note:
+                "Capabilities, descriptors, stages, and errors only. " +
+                "No serial numbers, PINs, card data, or permissions are included.",
+              capabilities: state.caps,
+              device: state.descriptorSummary,
+              selection: state.selection,
+              stages: state.stages,
+              errors: state.errors,
+            },
+            null,
+            2,
+          );
+        }
+
+        /* ---------- App state ---------- */
+
+        var state = {
+          runId: 0, // bumped on every connect/disconnect; stale async work aborts
+          busy: false, // true while a connection attempt is in flight
+          device: null,
+          claimed: [], // interface numbers successfully claimed
+          selection: null, // { configurationValue, interfaceNumber }
+          caps: null,
+          descriptorSummary: null,
+          stages: [],
+          errors: [],
+        };
+
+        var pendingOps = new Map(); // USBDevice -> Promise (in-flight open/claim/select)
+        var pendingCleanups = new Map(); // USBDevice -> Promise (in-flight cleanup)
+
+        /* ---------- DOM ---------- */
+
+        function el(id) {
+          return document.getElementById(id);
+        }
+
+        var capsBox,
+          descBox,
+          logBox,
+          reportBox,
+          copyStatus,
+          btnConnect,
+          btnDisconnect,
+          btnClaim,
+          btnCopy,
+          selConfig,
+          selInterface;
+
+        function now() {
+          return new Date().toISOString();
+        }
+
+        function refreshReport() {
+          if (reportBox) {
+            reportBox.value = buildReport(state);
+          }
+        }
+
+        function setCopyStatus(text) {
+          if (copyStatus) {
+            copyStatus.textContent = text;
+          }
+        }
+
+        function log(stage, detail, cls) {
+          state.stages.push({ at: now(), stage: stage, detail: detail || "" });
+          if (logBox) {
+            if (logBox.getAttribute("data-empty") === "yes") {
+              logBox.textContent = "";
+              logBox.removeAttribute("data-empty");
+            }
+            var line = document.createElement("div");
+            var name = document.createElement("span");
+            name.className = "stage" + (cls ? " " + cls : "");
+            name.textContent = stage;
+            line.appendChild(name);
+            if (detail) {
+              line.appendChild(document.createTextNode(": " + detail));
+            }
+            logBox.appendChild(line);
+          }
+          refreshReport();
+        }
+
+        function recordError(stage, err) {
+          var name = err && err.name ? err.name : "UnknownError";
+          var message = err && err.message ? err.message : String(err);
+          state.errors.push({ at: now(), stage: stage, name: name, message: message });
+          log(stage + " failed", name + " - " + message, "err");
+        }
+
+        function renderCaps() {
+          if (!capsBox) {
+            return;
+          }
+          var c = state.caps;
+          capsBox.textContent =
+            "isSecureContext: " +
+            c.isSecureContext +
+            "\n" +
+            "navigator.usb present: " +
+            c.hasWebUsb +
+            "\n" +
+            "verdict: " +
+            c.verdict +
+            "\n" +
+            c.explanation;
+          capsBox.className = c.verdict === "ready" ? "ok" : "err";
+        }
+
+        function renderDescriptors() {
+          if (!descBox) {
+            return;
+          }
+          var d = state.descriptorSummary;
+          if (!d) {
+            descBox.textContent = "No device selected.";
+            descBox.className = "";
+            return;
+          }
+          var out = [];
+          out.push(
+            "VID " +
+              d.vendorId +
+              "  PID " +
+              d.productId +
+              (d.productName ? "  " + d.productName : "") +
+              (d.manufacturerName ? "  (" + d.manufacturerName + ")" : ""),
+          );
+          out.push("open: " + d.opened + "  activeConfiguration: " + d.activeConfigurationValue);
+          d.configurations.forEach(function (cfg) {
+            out.push("configurationValue " + cfg.configurationValue + ":");
+            cfg.interfaces.forEach(function (iface) {
+              iface.alternates.forEach(function (alt, index) {
+                var prot = alt.protectedClass
+                  ? "  [PROTECTED: " +
+                    alt.protectedClass +
+                    " - claim expected to fail with SecurityError]"
+                  : "";
+                out.push(
+                  "  interface " +
+                    iface.interfaceNumber +
+                    " alt " +
+                    index +
+                    " class " +
+                    alt.interfaceClassHex +
+                    " subclass " +
+                    alt.interfaceSubclassHex +
+                    " protocol " +
+                    alt.interfaceProtocolHex +
+                    prot,
+                );
+                alt.endpoints.forEach(function (ep) {
+                  out.push(
+                    "    endpoint " + ep.endpointNumber + " " + ep.direction + " " + ep.type,
+                  );
+                });
+              });
+            });
+          });
+          if (d.protectedAlternates.length > 0) {
+            out.push(
+              "Protected alternate settings present: " +
+                d.protectedAlternates
+                  .map(function (p) {
+                    return "iface " + p.interfaceNumber + " " + p.classHex + " " + p.className;
+                  })
+                  .join("; "),
+            );
+          } else {
+            out.push(
+              "No protected alternate settings detected by class code. " +
+                "Claim may still fail (driver or OS ownership).",
+            );
+          }
+          out.push("A permission grant is not proof of usable card access.");
+          descBox.textContent = out.join("\n");
+          descBox.className = "";
+        }
+
+        function setControls() {
+          var usable = state.caps && state.caps.verdict === "ready";
+          var hasDevice = !!state.device;
+          var hasIface = !!(
+            selInterface &&
+            selInterface.value !== "" &&
+            selInterface.value !== undefined
+          );
+          if (btnConnect) {
+            btnConnect.disabled = !usable || state.busy || hasDevice;
+          }
+          if (btnDisconnect) {
+            btnDisconnect.disabled = !hasDevice && !state.busy;
+          }
+          if (btnClaim) {
+            btnClaim.disabled = !hasDevice || state.busy || !hasIface;
+          }
+          if (selConfig) {
+            selConfig.disabled =
+              !hasDevice || state.busy || (selConfig.options && selConfig.options.length === 0);
+          }
+          if (selInterface) {
+            selInterface.disabled = !hasDevice || state.busy || !hasIface;
+          }
+        }
+
+        function formatInterfaceOption(iface) {
+          var protNames = [];
+          var classes = (iface.alternates || [])
+            .map(function (a) {
+              var p = protectedClassName(a.interfaceClass);
+              if (p && protNames.indexOf(p) === -1) {
+                protNames.push(p);
+              }
+              return hex2(a.interfaceClass);
+            })
+            .join(",");
+          var protSuffix = protNames.length > 0 ? " [PROTECTED: " + protNames.join(", ") + "]" : "";
+          return "Interface " + iface.interfaceNumber + " (class " + classes + protSuffix + ")";
+        }
+
+        function findConfig(device, configVal) {
+          if (!device || !device.configurations) {
+            return null;
+          }
+          for (var i = 0; i < device.configurations.length; i++) {
+            if (device.configurations[i].configurationValue === configVal) {
+              return device.configurations[i];
+            }
+          }
+          return null;
+        }
+
+        function populateInterfaces(cfg) {
+          if (!selInterface) {
+            return;
+          }
+          selInterface.textContent = "";
+          var ifaces = cfg && cfg.interfaces ? cfg.interfaces : [];
+          ifaces.forEach(function (iface) {
+            var opt = document.createElement("option");
+            opt.value = String(iface.interfaceNumber);
+            opt.textContent = formatInterfaceOption(iface);
+            selInterface.appendChild(opt);
+          });
+          if (selInterface.options && selInterface.options.length > 0) {
+            selInterface.selectedIndex = 0;
+            selInterface.value = selInterface.options[0].value;
+          } else {
+            selInterface.value = "";
+          }
+        }
+
+        function updateSelectedConfig() {
+          if (!selConfig) {
+            return;
+          }
+          var cfgVal =
+            selConfig.value !== "" && selConfig.value !== undefined
+              ? Number(selConfig.value)
+              : null;
+          if (cfgVal !== null && isNaN(cfgVal)) {
+            cfgVal = null;
+          }
+          var cfg = cfgVal !== null && state.device ? findConfig(state.device, cfgVal) : null;
+          populateInterfaces(cfg);
+          var ifaceVal =
+            selInterface && selInterface.value !== "" && selInterface.value !== undefined
+              ? Number(selInterface.value)
+              : null;
+          if (ifaceVal !== null && isNaN(ifaceVal)) {
+            ifaceVal = null;
+          }
+          state.selection = {
+            configurationValue: cfgVal,
+            interfaceNumber: ifaceVal,
+          };
+          setControls();
+          refreshReport();
+        }
+
+        function populateSelectors() {
+          if (!selConfig || !selInterface || !state.device) {
+            return;
+          }
+          selConfig.textContent = "";
+          selInterface.textContent = "";
+          var device = state.device;
+          var configs = device.configurations || [];
+          var activeValue = device.configuration
+            ? device.configuration.configurationValue
+            : configs[0] && configs[0].configurationValue;
+          configs.forEach(function (cfg) {
+            var opt = document.createElement("option");
+            opt.value = String(cfg.configurationValue);
+            opt.textContent = "Configuration " + cfg.configurationValue;
+            if (cfg.configurationValue === activeValue) {
+              opt.selected = true;
+            }
+            selConfig.appendChild(opt);
+          });
+          if (selConfig.options && selConfig.options.length > 0) {
+            var matchIndex = 0;
+            for (var i = 0; i < selConfig.options.length; i++) {
+              if (Number(selConfig.options[i].value) === activeValue) {
+                matchIndex = i;
+                break;
+              }
+            }
+            selConfig.selectedIndex = matchIndex;
+            selConfig.value = selConfig.options[matchIndex].value;
+          } else {
+            selConfig.value = "";
+          }
+          updateSelectedConfig();
+        }
+
+        /* ---------- Cleanup ---------- */
+
+        function releaseClaimedSilently(device, claimed) {
+          var pending = claimed.map(function (ifaceNum) {
+            return device.releaseInterface(ifaceNum).catch(function () {
+              /* best effort */
+            });
+          });
+          return Promise.all(pending);
+        }
+
+        function cleanupSpecificDevice(device, claimed, reason) {
+          if (!device) {
+            return Promise.resolve();
+          }
+          if (pendingCleanups.has(device)) {
+            return pendingCleanups.get(device);
+          }
+          var inFlight = pendingOps.get(device) || Promise.resolve();
+          var p = inFlight
+            .catch(function () {
+              /* ignore in-flight errors during cleanup */
+            })
+            .then(function () {
+              return releaseClaimedSilently(device, claimed);
+            })
+            .then(function () {
+              if (device.opened) {
+                return device.close().catch(function () {
+                  /* best effort */
+                });
+              }
+              return null;
+            })
+            .then(function () {
+              pendingOps.delete(device);
+              pendingCleanups.delete(device);
+              if (reason) {
+                log("cleanup", reason);
+              }
+              if (state.device === null) {
+                setControls();
+                renderDescriptors();
+                refreshReport();
+              }
+            });
+          pendingCleanups.set(device, p);
+          return p;
+        }
+
+        function cleanupDevice(reason) {
+          var device = state.device;
+          var claimed = state.claimed.slice();
+          state.device = null;
+          state.claimed = [];
+          state.selection = null;
+          state.descriptorSummary = null;
+          if (selConfig) {
+            selConfig.textContent = "";
+            selConfig.value = "";
+          }
+          if (selInterface) {
+            selInterface.textContent = "";
+            selInterface.value = "";
+          }
+          setControls();
+          renderDescriptors();
+          refreshReport();
+          if (!device) {
+            return Promise.resolve();
+          }
+          return cleanupSpecificDevice(device, claimed, reason);
+        }
+
+        function handleUnplug(event) {
+          var dev = event && event.device;
+          if (state.device && dev === state.device) {
+            state.runId += 1; // invalidate in-flight async work
+            state.busy = false;
+            log("unplug", "Current device was disconnected; cleaning up.", "warn");
+            cleanupDevice("unplug cleanup");
+          }
+        }
+
+        /* ---------- Flows ---------- */
+
+        function doConnect() {
+          if (state.busy) {
+            log("connect ignored", "A connection attempt is already running.", "warn");
+            return;
+          }
+          if (!state.caps || state.caps.verdict !== "ready") {
+            log(
+              "connect blocked",
+              state.caps ? state.caps.explanation : "Capabilities unknown.",
+              "err",
+            );
+            return;
+          }
+          if (state.device) {
+            log("connect ignored", "A device is already connected. Disconnect first.", "warn");
+            return;
+          }
+          var id = ++state.runId;
+          state.busy = true;
+          setControls();
+          log("connect requested", "Waiting for the browser device chooser...");
+
+          var usb = navigator.usb;
+          usb
+            .requestDevice({ filters: [] })
+            .then(function (device) {
+              if (id !== state.runId) {
+                return null;
+              } // stale: user disconnected meanwhile
+
+              // Guard: wait if previous cleanup of this device is still pending
+              var waitCleanup = pendingCleanups.get(device) || Promise.resolve();
+              if (pendingCleanups.has(device)) {
+                log(
+                  "connect waiting",
+                  "Waiting for previous cleanup of this device to complete...",
+                );
+              }
+              return waitCleanup.then(function () {
+                if (id !== state.runId) {
+                  return null;
+                }
+                state.device = device;
+                log(
+                  "permission granted",
+                  "VID " +
+                    hex4(device.vendorId) +
+                    " PID " +
+                    hex4(device.productId) +
+                    ". A grant is not proof of usable card access.",
+                );
+                return openAndInspect(id, device);
+              });
+            })
+            .catch(function (err) {
+              if (id !== state.runId) {
+                return;
+              }
+              var name = err && err.name ? err.name : "UnknownError";
+              if (name === "NotFoundError") {
+                // Permission cancellation is a normal outcome.
+                log(
+                  "permission dismissed",
+                  "No device chosen (NotFoundError). Nothing was accessed.",
+                  "warn",
+                );
+              } else {
+                recordError("requestDevice", err);
+              }
+              state.busy = false;
+              setControls();
+              refreshReport();
+            });
+        }
+
+        function openAndInspect(id, device) {
+          log("open", "Opening device...");
+          var openPromise = device.open();
+          pendingOps.set(device, openPromise);
+          return openPromise
+            .then(function () {
+              if (id !== state.runId) {
+                cleanupSpecificDevice(device, [], "cleanup stale open");
+                return null;
+              }
+              var target = device.configuration
+                ? device.configuration.configurationValue
+                : device.configurations &&
+                  device.configurations[0] &&
+                  device.configurations[0].configurationValue;
+              if (device.configuration || target === undefined) {
+                log(
+                  "selectConfiguration skipped",
+                  device.configuration
+                    ? "Configuration " +
+                        device.configuration.configurationValue +
+                        " already active."
+                    : "Device exposes no configurations to select.",
+                );
+                return null;
+              }
+              log("selectConfiguration", "Selecting configuration " + target + "...");
+              var selPromise = device.selectConfiguration(target);
+              pendingOps.set(device, selPromise);
+              return selPromise.catch(function (err) {
+                if (id !== state.runId) {
+                  return null;
+                }
+                recordError("selectConfiguration", err);
+                return null; // continue with descriptor inspection regardless
+              });
+            })
+            .then(function () {
+              if (id !== state.runId) {
+                return;
+              }
+              state.descriptorSummary = summarizeDevice(device);
+              state.busy = false;
+              populateSelectors();
+              setControls();
+              renderDescriptors();
+              var prot = state.descriptorSummary.protectedAlternates;
+              if (prot.length > 0) {
+                log(
+                  "inspect",
+                  "Found " +
+                    prot.length +
+                    " protected alternate setting(s); " +
+                    "claiming them is expected to fail with SecurityError.",
+                  "warn",
+                );
+              } else {
+                log(
+                  "inspect",
+                  "Descriptors read. No protected class codes seen; " +
+                    "a claim attempt will show whether the OS/driver allows access.",
+                );
+              }
+              refreshReport();
+            })
+            .catch(function (err) {
+              if (id !== state.runId) {
+                return;
+              }
+              recordError("open", err);
+              state.busy = false;
+              cleanupDevice("cleanup after failed open");
+            });
+        }
+
+        function doClaim() {
+          if (state.busy) {
+            log("claim ignored", "Another operation is running.", "warn");
+            return;
+          }
+          if (!state.device) {
+            log("claim blocked", "No device connected.", "err");
+            return;
+          }
+          var id = state.runId; // claim does not start a new run; abort if run changes
+          var device = state.device;
+          var configValue =
+            selConfig && selConfig.value !== "" && selConfig.value !== undefined
+              ? Number(selConfig.value)
+              : null;
+          if (configValue !== null && isNaN(configValue)) {
+            configValue = null;
+          }
+          var ifaceNum =
+            selInterface && selInterface.value !== "" && selInterface.value !== undefined
+              ? Number(selInterface.value)
+              : null;
+          if (ifaceNum !== null && isNaN(ifaceNum)) {
+            ifaceNum = null;
+          }
+          if (ifaceNum === null) {
+            log("claim blocked", "No interface selected.", "err");
+            return;
+          }
+          state.selection = { configurationValue: configValue, interfaceNumber: ifaceNum };
+          state.busy = true;
+          setControls();
+          refreshReport();
+
+          var needSelect =
+            configValue !== null &&
+            (!device.configuration || device.configuration.configurationValue !== configValue);
+          var selectFailed = false;
+          var chain = Promise.resolve();
+          if (needSelect) {
+            log("selectConfiguration", "Selecting configuration " + configValue + "...");
+            chain = chain
+              .then(function () {
+                var p = device.selectConfiguration(configValue);
+                pendingOps.set(device, p);
+                return p;
+              })
+              .catch(function (err) {
+                if (id !== state.runId) {
+                  return null;
+                }
+                recordError("selectConfiguration", err);
+                selectFailed = true; // stop before the claim; do not record twice
+                return null;
+              });
+          }
+          chain
+            .then(function () {
+              if (id !== state.runId) {
+                return null;
+              }
+              if (selectFailed) {
+                // claim skipped; release the UI, error already recorded
+                state.busy = false;
+                setControls();
+                refreshReport();
+                return null;
+              }
+              log("claimInterface", "Claiming interface " + ifaceNum + "...");
+              var claimP = device.claimInterface(ifaceNum);
+              pendingOps.set(device, claimP);
+              return claimP;
+            })
+            .then(function (result) {
+              if (id !== state.runId || result === null) {
+                if (id !== state.runId && result !== null) {
+                  device.releaseInterface(ifaceNum).catch(function () {});
+                  if (device !== state.device && device.opened) {
+                    device.close().catch(function () {});
+                  }
+                }
+                return;
+              }
+              state.claimed.push(ifaceNum);
+              state.descriptorSummary = summarizeDevice(device);
+              renderDescriptors();
+              log(
+                "claimInterface succeeded",
+                "Interface " +
+                  ifaceNum +
+                  " claimed. This proves interface access only - " +
+                  "not a usable card protocol. No transfers are performed in this milestone.",
+                "ok",
+              );
+              state.busy = false;
+              setControls();
+              refreshReport();
+            })
+            .catch(function (err) {
+              if (id !== state.runId) {
+                return;
+              }
+              recordError("claimInterface", err);
+              if (err && err.name === "SecurityError") {
+                log(
+                  "verdict",
+                  "Access blocked by WebUSB protected-class policy. Standard CCID " +
+                    "readers (Smart Card class 0x0B) cannot be claimed by an ordinary " +
+                    "page, even with user permission.",
+                  "err",
+                );
+              }
+              state.busy = false;
+              setControls();
+              refreshReport();
+            });
+        }
+
+        function doDisconnect() {
+          state.runId += 1; // invalidate in-flight work
+          state.busy = false;
+          log("disconnect requested", "Releasing interfaces and closing the device...");
+          cleanupDevice("manual disconnect");
+        }
+
+        function doCopy() {
+          refreshReport();
+          var text = reportBox ? reportBox.value : "";
+          function done() {
+            setCopyStatus("Copied " + text.length + " characters.");
+          }
+          function fallback() {
+            if (reportBox) {
+              reportBox.focus();
+              try {
+                reportBox.select();
+              } catch (e) {
+                /* best effort */
+              }
+            }
+            try {
+              if (document.execCommand && document.execCommand("copy")) {
+                done();
+                return;
+              }
+            } catch (e) {
+              /* fall through */
+            }
+            setCopyStatus("Copy manually: report is selected above.");
+          }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, fallback);
+          } else {
+            fallback();
+          }
+        }
+
+        /* ---------- Init (no prompt on load) ---------- */
+
+        function init() {
+          capsBox = el("caps");
+          descBox = el("desc");
+          logBox = el("log");
+          reportBox = el("report");
+          copyStatus = el("copyStatus");
+          btnConnect = el("btnConnect");
+          btnDisconnect = el("btnDisconnect");
+          btnClaim = el("btnClaim");
+          btnCopy = el("btnCopy");
+          selConfig = el("selConfig");
+          selInterface = el("selInterface");
+
+          var env = {
+            isSecureContext:
+              typeof window !== "undefined" && typeof window.isSecureContext !== "undefined"
+                ? window.isSecureContext
+                : typeof isSecureContext !== "undefined"
+                  ? isSecureContext
+                  : false,
+            hasUsb: typeof navigator !== "undefined" && !!navigator.usb,
+          };
+          state.caps = evaluateCapabilities(env);
+          if (logBox) {
+            logBox.setAttribute("data-empty", "yes");
+          }
+          renderCaps();
+          setControls();
+          refreshReport();
+          log("init", state.caps.explanation, state.caps.verdict === "ready" ? "ok" : "err");
+
+          if (btnConnect) {
+            btnConnect.addEventListener("click", doConnect);
+          }
+          if (btnDisconnect) {
+            btnDisconnect.addEventListener("click", doDisconnect);
+          }
+          if (btnClaim) {
+            btnClaim.addEventListener("click", doClaim);
+          }
+          if (btnCopy) {
+            btnCopy.addEventListener("click", doCopy);
+          }
+          if (selInterface) {
+            selInterface.addEventListener("change", function () {
+              var ifaceVal =
+                selInterface.value !== "" && selInterface.value !== undefined
+                  ? Number(selInterface.value)
+                  : null;
+              if (ifaceVal !== null && isNaN(ifaceVal)) {
+                ifaceVal = null;
+              }
+              if (state.selection) {
+                state.selection.interfaceNumber = ifaceVal;
+              } else {
+                var cfgVal =
+                  selConfig && selConfig.value !== "" && selConfig.value !== undefined
+                    ? Number(selConfig.value)
+                    : null;
+                state.selection = { configurationValue: cfgVal, interfaceNumber: ifaceVal };
+              }
+              setControls();
+              refreshReport();
+            });
+          }
+          if (selConfig) {
+            selConfig.addEventListener("change", function () {
+              updateSelectedConfig();
+            });
+          }
+          try {
+            if (env.hasUsb && navigator.usb.addEventListener) {
+              navigator.usb.addEventListener("disconnect", handleUnplug);
+            }
+          } catch (e) {
+            /* listener is best effort; flows still work */
+          }
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", init);
+        } else {
+          init();
+        }
+      })();
+    </script>
+  </body>
+</html>

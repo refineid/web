@@ -1,0 +1,23 @@
+[package]
+name = "refineid-proxy-cli"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "refineid_proxy_cli"
+
+[[bin]]
+name = "refineid-proxy-cli"
+path = "src/main.rs"
+
+[dependencies]
+futures = "0.3.34"
+getrandom = "0.3.4"
+refineid-rapp = { version = "26.9.26", path = "../../../refineid-core/crates/rapp" }
+refineid-relay-poc = { version = "0.1.0", path = "../relay" }
+sha2 = "0.10.9"
+tokio = { version = "1.53.1", features = ["full"] }
+tokio-tungstenite = "0.30.0"
+
+[dev-dependencies]
+tokio = { version = "1.53.1", features = ["full"] }
