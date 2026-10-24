@@ -46,12 +46,12 @@
 ## Confirmed bug fixes (observed and verified)
 
 1. **Bug 1: `selConfig` change handler interface rebuilding.**
-   - *Problem:* Changing `selConfig` updated `state.selection.configurationValue` but did not rebuild the `selInterface` options for the newly selected configuration. If configuration 1 had interface 0 and configuration 2 had interface 7, switching to configuration 2 left the UI and claim button offering interface 0.
-   - *Fix:* Added `updateSelectedConfig()` and `populateInterfaces(cfg)`, invoked on initial device inspection and on every `selConfig` change event. It looks up the selected configuration on the device, clears and populates `selInterface` options with formatted interface numbers and class descriptors (including `[PROTECTED: <name>]` annotations), synchronizes `state.selection` (`configurationValue`, `interfaceNumber`), disables `selInterface` and `btnClaim` if a configuration exposes no interfaces, and refreshes the diagnostic report. When `btnClaim` is clicked, `device.selectConfiguration` and `device.claimInterface` strictly target the agreed selection.
+   - _Problem:_ Changing `selConfig` updated `state.selection.configurationValue` but did not rebuild the `selInterface` options for the newly selected configuration. If configuration 1 had interface 0 and configuration 2 had interface 7, switching to configuration 2 left the UI and claim button offering interface 0.
+   - _Fix:_ Added `updateSelectedConfig()` and `populateInterfaces(cfg)`, invoked on initial device inspection and on every `selConfig` change event. It looks up the selected configuration on the device, clears and populates `selInterface` options with formatted interface numbers and class descriptors (including `[PROTECTED: <name>]` annotations), synchronizes `state.selection` (`configurationValue`, `interfaceNumber`), disables `selInterface` and `btnClaim` if a configuration exposes no interfaces, and refreshes the diagnostic report. When `btnClaim` is clicked, `device.selectConfiguration` and `device.claimInterface` strictly target the agreed selection.
 
 2. **Bug 2: Lifecycle races & open device leak prevention.**
-   - *Problem:* Calling Disconnect while `device.open()` was pending leaked the device when the open promise resolved later, because the stale callback returned without closing the now-open device. Reconnecting the same device while cleanup was in-flight risked state corruption, and late work could close newer connections or repopulate stale UI.
-   - *Fix:* Introduced per-device tracking Maps (`pendingOps` and `pendingCleanups`). When `cleanupDevice()` runs, it delegates to `cleanupSpecificDevice(device, claimed, reason)`, which chains off any in-flight device operation (e.g. pending `device.open()` or `device.claimInterface()`). When a delayed `open()` settles, if the run was canceled (`id !== state.runId`), the device is closed immediately without leaking. If a user reconnects the same device while cleanup is pending, `doConnect()` awaits `pendingCleanups.get(device)` before reopening. Furthermore, late cleanup of Device A never closes a newer active connection to Device B or touches its UI.
+   - _Problem:_ Calling Disconnect while `device.open()` was pending leaked the device when the open promise resolved later, because the stale callback returned without closing the now-open device. Reconnecting the same device while cleanup was in-flight risked state corruption, and late work could close newer connections or repopulate stale UI.
+   - _Fix:_ Introduced per-device tracking Maps (`pendingOps` and `pendingCleanups`). When `cleanupDevice()` runs, it delegates to `cleanupSpecificDevice(device, claimed, reason)`, which chains off any in-flight device operation (e.g. pending `device.open()` or `device.claimInterface()`). When a delayed `open()` settles, if the run was canceled (`id !== state.runId`), the device is closed immediately without leaking. If a user reconnects the same device while cleanup is pending, `doConnect()` awaits `pendingCleanups.get(device)` before reopening. Furthermore, late cleanup of Device A never closes a newer active connection to Device B or touches its UI.
 
 ## What the prototype actually tested
 
@@ -65,17 +65,17 @@ zero network requests, zero storage APIs, never reads `device.serialNumber`).
 
 - **Synthetic test harness (observed, `tests/webusb-harness.js`, test doubles, no hardware): 75/75 pass.**
   Command: `node tests/webusb-harness.js`
-  - *Baseline assertions preserved (29/29):* Insecure-origin message, missing `navigator.usb` (Firefox-like) message, ready state enables Connect, no auto-prompt on load, permission cancellation (`NotFoundError`) dismissal without errors, CCID device descriptor display (VID/PID, class `0x0B`, bulk endpoints) with protected flagging, claim rejection recorded as `claimInterface failed: SecurityError`, vendor-class (0xFF) claim success, release+close on Disconnect, duplicate connect clicks ignored, unplug cleanup via `disconnect` event, `InvalidStateError` (already claimed) with exact stage, serial number absent from descriptors and report, copy fallback.
-  - *Bug 1 regression assertions (20/20):* Dynamic rebuilding of `selInterface` when switching configurations (e.g. config 1 with interface 0 to config 2 with interface 7); removal of stale interface options; synchronization of UI, report selection, and USB claim arguments (`selectConfiguration(2)` and `claimInterface(7)`); configuration with no interfaces (`interfaces: []`) clearing `selInterface`, disabling `selInterface` and `btnClaim`, recording `null` interfaceNumber, and blocking claim calls; switching to configurations containing protected alternate settings (class 0x0B) with visible `PROTECTED` labels, `SecurityError` rejection, and protected-class policy logging.
-  - *Bug 2 regression assertions (26/26):* Deferred `device.open()` promise where Disconnect is clicked while `open()` is pending; resolving the delayed open proves the device is closed and not leaked (`dev.opened === false`); stale descriptors are not repopulated; report shows disconnected state; guard against reconnecting the same device while cleanup is pending (`connect waiting` logged, second open called only after first cleanup closes device); late work on slow Device A does not close a newer active connection to Device B or overwrite Device B's UI/report; deferred `claimInterface()` canceled by Disconnect cleanly releases and closes device; unplug event during pending `open()` cleans up safely.
+  - _Baseline assertions preserved (29/29):_ Insecure-origin message, missing `navigator.usb` (Firefox-like) message, ready state enables Connect, no auto-prompt on load, permission cancellation (`NotFoundError`) dismissal without errors, CCID device descriptor display (VID/PID, class `0x0B`, bulk endpoints) with protected flagging, claim rejection recorded as `claimInterface failed: SecurityError`, vendor-class (0xFF) claim success, release+close on Disconnect, duplicate connect clicks ignored, unplug cleanup via `disconnect` event, `InvalidStateError` (already claimed) with exact stage, serial number absent from descriptors and report, copy fallback.
+  - _Bug 1 regression assertions (20/20):_ Dynamic rebuilding of `selInterface` when switching configurations (e.g. config 1 with interface 0 to config 2 with interface 7); removal of stale interface options; synchronization of UI, report selection, and USB claim arguments (`selectConfiguration(2)` and `claimInterface(7)`); configuration with no interfaces (`interfaces: []`) clearing `selInterface`, disabling `selInterface` and `btnClaim`, recording `null` interfaceNumber, and blocking claim calls; switching to configurations containing protected alternate settings (class 0x0B) with visible `PROTECTED` labels, `SecurityError` rejection, and protected-class policy logging.
+  - _Bug 2 regression assertions (26/26):_ Deferred `device.open()` promise where Disconnect is clicked while `open()` is pending; resolving the delayed open proves the device is closed and not leaked (`dev.opened === false`); stale descriptors are not repopulated; report shows disconnected state; guard against reconnecting the same device while cleanup is pending (`connect waiting` logged, second open called only after first cleanup closes device); late work on slow Device A does not close a newer active connection to Device B or overwrite Device B's UI/report; deferred `claimInterface()` canceled by Disconnect cleanly releases and closes device; unplug event during pending `open()` cleans up safely.
 
 - **Real Chrome browser smoke test (observed, `tests/browser-smoke.js`, real browser execution): 36/36 pass.**
   Command: `node tests/browser-smoke.js`
-  - *Browser Environment:* Google Chrome 154.0.8037.58 (`HeadlessChrome/154.0.0.0 Safari/537.36`), V8 15.4.80.11, macOS Darwin.
-  - *Server:* Loopback HTTP server (`python3 -m http.server`) serving `public/` on `127.0.0.1:8080` (or ephemeral loopback port).
-  - *Page Load & Rendering (14 checks):* Title matches; loopback treated as secure context (`window.isSecureContext === true`); `navigator.usb` natively present; capabilities panel displays `verdict: ready` with class `ok`; initial controls verified (`btnConnect` enabled, `btnDisconnect`/`btnClaim`/`selConfig`/`selInterface` disabled); initial diagnostic report JSON generated; zero console errors and zero uncaught script exceptions on load.
-  - *Native Chooser Lifecycle & Cancellation (7 checks):* Native WebUSB `requestDevice({ filters: [] })` invoked via user gesture activation; enters `connect requested: Waiting for the browser device chooser…`; Disconnect while awaiting chooser cleanly cancels and re-enables `btnConnect`; permission dismissal (`NotFoundError`) handled gracefully without errors.
-  - *In-Browser Simulated USB Flows (15 checks):* Executed inside real Chrome DOM and JavaScript engine:
+  - _Browser Environment:_ Google Chrome 154.0.8037.58 (`HeadlessChrome/154.0.0.0 Safari/537.36`), V8 15.4.80.11, macOS Darwin.
+  - _Server:_ Loopback HTTP server (`python3 -m http.server`) serving `public/` on `127.0.0.1:8080` (or ephemeral loopback port).
+  - _Page Load & Rendering (14 checks):_ Title matches; loopback treated as secure context (`window.isSecureContext === true`); `navigator.usb` natively present; capabilities panel displays `verdict: ready` with class `ok`; initial controls verified (`btnConnect` enabled, `btnDisconnect`/`btnClaim`/`selConfig`/`selInterface` disabled); initial diagnostic report JSON generated; zero console errors and zero uncaught script exceptions on load.
+  - _Native Chooser Lifecycle & Cancellation (7 checks):_ Native WebUSB `requestDevice({ filters: [] })` invoked via user gesture activation; enters `connect requested: Waiting for the browser device chooser…`; Disconnect while awaiting chooser cleanly cancels and re-enables `btnConnect`; permission dismissal (`NotFoundError`) handled gracefully without errors.
+  - _In-Browser Simulated USB Flows (15 checks):_ Executed inside real Chrome DOM and JavaScript engine:
     - Simulated CCID reader (0x0B): Descriptors flagged `PROTECTED: Smart Card`, serial number absent, `claimInterface` rejects with `SecurityError`, WebUSB protected-class policy verdict logged, device cleanly closed on disconnect.
     - Bug 1 in Chrome DOM: Switching from Config 1 to Config 2 dynamically updates `selInterface` from interface 0 to interface 7 in the live DOM, claim routes to interface 7, and Config 3 (no interfaces) empties selector and disables claim button.
     - Bug 2 in Chrome DOM: Delayed `open()` followed by Disconnect and late resolution confirms `dev.opened === false` in Chrome (no leak), descriptors remain "No device selected.", and report remains disconnected.
@@ -133,8 +133,8 @@ double-click Connect.
 ## mTLS login proof-of-concept (2026-09-26, synthetic PKI only)
 
 Motivation: with page-to-card access proven impossible, the remaining
-zero-RefineID-install path is mutual TLS — the *browser* presents a client
-certificate (via OS/vendor card middleware) and the *server* asserts the
+zero-RefineID-install path is mutual TLS — the _browser_ presents a client
+certificate (via OS/vendor card middleware) and the _server_ asserts the
 login. `poc-mtls/` implements this on loopback with Python stdlib only:
 `mkcerts.sh` builds a throwaway test CA + server cert + one synthetic
 client identity (FINEID-shaped subject, no real person); `server.py`
@@ -151,7 +151,7 @@ cert → `LOGGED IN` page showing `POC TEST USER 010190-123N`, serial
 — unlike WebUSB — works outside Chromium entirely. One UX wrinkle
 observed: macOS prompted for an admin password ("Safari wants to use the
 System keychain") because the test identity lived in the admin-protected
-System keychain; importing the `.p12` into the per-user *login* keychain
+System keychain; importing the `.p12` into the per-user _login_ keychain
 avoids that. A test-PKI artifact — with a real card the key never sits in
 any keychain — but a reminder that client-side identity placement shapes
 the login UX. Follow-up observations from the same run: Safari's picker
@@ -161,8 +161,8 @@ to an earlier claim: this Mac has RefineID installed, and stock macOS only
 bridges PIV cards natively (built-in CryptoTokenKit token), so the
 card → browser path here is almost certainly provided by installed card
 middleware, not the bare OS. The honest scope of "zero install" is
-therefore: zero *browser-facing* software (no extension, no page-specific
-agent) — but *some* card middleware (RefineID's, OpenSC-based, or vendor)
+therefore: zero _browser-facing_ software (no extension, no page-specific
+agent) — but _some_ card middleware (RefineID's, OpenSC-based, or vendor)
 is still required on the client. Verifiable on the user's machine with
 `pluginkit -m -p com.apple.ctk-tokens` in a normal terminal; selecting
 the login-keychain copy triggers a
