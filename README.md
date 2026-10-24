@@ -37,11 +37,37 @@ reports that instead of attempting access.
 
 ## Automated tests
 
-Reproducible tests run locally using already installed Node.js and Chrome binaries:
+```sh
+npm test                               # protocol tests + WebUSB harness (Node only)
+scripts/verify.sh                      # every format/lint check and test suite
+scripts/verify.sh --allow-unavailable  # same, missing prerequisites reported as SKIPPED
+```
+
+`scripts/verify.sh` prints one line per check (`PASS`, `FAIL`, `UNAVAILABLE` or
+`SKIPPED`) and the output of each failing check. It exits nonzero when any check
+fails or is unavailable. A check is unavailable when its tool or prerequisite is
+missing; `--allow-unavailable` downgrades that to `SKIPPED` so a partial setup
+can still pass, and the summary line counts skipped checks separately.
+
+| Check                                                | Needs                                                                            |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| prettier                                             | `npm ci` (local `node_modules`)                                                  |
+| ruff check, ruff format                              | ruff in `.venv/bin` or on `PATH`                                                 |
+| shellcheck                                           | shellcheck                                                                       |
+| protocol tests, webusb harness                       | Node.js                                                                          |
+| mtls selftest                                        | python3 (3.10+) and the local test PKI from `poc-mtls/mkcerts.sh`                |
+| relay, proxy-cli, wasm-requester (fmt, clippy, test) | cargo; proxy-cli and wasm-requester also need a sibling `refineid-core` checkout |
+
+RefineID tracks refineid-core main. Before the Cargo checks, the script moves the
+refineid-core entries of each `Cargo.lock` to the sibling checkout
+(`cargo update -p <core crate>`); commit the refreshed lock files with the change.
+Clippy and the tests then run with `--locked`, so no other dependency moves.
+Clippy runs with `-D warnings`.
+
+The real-browser smoke test is separate, as it needs an installed Chrome:
 
 ```sh
-node tests/webusb-harness.js  # 75 synthetic assertions (baseline + Bug 1 & 2 regressions)
-node tests/browser-smoke.js   # 36 real Chrome smoke assertions via loopback & CDP
+node tests/browser-smoke.js   # real Chrome smoke assertions via loopback & CDP
 ```
 
 ## Use the hardware probe
