@@ -1,0 +1,13 @@
+[package]
+name = "refineid-relay-poc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ciborium = "0.2.2"
+futures = "0.3.34"
+tokio = { version = "1.53.1", features = ["full"] }
+tokio-tungstenite = "0.30.0"
+
+[dev-dependencies]
+tokio = { version = "1.53.1", features = ["full"] }

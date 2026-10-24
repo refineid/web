@@ -1,0 +1,13 @@
+.DS_Store
+/work/
+target/
+# mTLS PoC throwaway PKI: private keys must never be committed.
+/poc-mtls/pki/
+# Local JS tooling.
+/node_modules/
+# Project Python env (ruff lives here).
+/.venv/
+# Bytecode.
+__pycache__/
+# Built extension WASM bundle (regenerate with build-extension-wasm.sh).
+/extension/wasm/

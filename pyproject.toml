@@ -1,0 +1,7 @@
+# Lint/format config only; this repo has no Python package to build.
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# Proto phase: syntax-level correctness, not style lawyering.
+select = ["E", "F"]

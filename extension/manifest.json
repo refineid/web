@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "RefineID",
+  "version": "0.1.0",
+  "description": "Pair a phone over the RAPP relay and open card-backed sessions. Prototype.",
+  "minimum_chrome_version": "116",
+  "background": {
+    "service_worker": "worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "RefineID"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://card.refineid.fi/*",
+        "http://localhost:8080/*",
+        "http://127.0.0.1:8080/*"
+      ],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "host_permissions": ["ws://127.0.0.1/*", "wss://*/*"]
+}
