@@ -1,5 +1,21 @@
 # RefineID Web research
 
+## Status: parked, research concluded
+
+This repository asked one question: can a browser alone, with no installed
+helper and no backend, drive a Finnish identity card? The answer, as far as
+the maintainer knows today, is no. Smart-card readers present a CCID
+interface, and browsers place that interface class behind WebUSB's protected
+list, so a web page cannot reach the card. Without that, RefineID's card
+functionality cannot be implemented in a browser, and no amount of
+client-side work changes it. That may change in a future browser, and
+other, non-card features may yet live here, but nothing in this repository
+is developed or supported for the time being.
+
+The code below is the research prototype that established this. It is kept
+as a record and is not kept building against the current refineid-core.
+
+
 Target: one self-contained page for browser-based document signing, with direct
 USB card access and no installed helper or application backend.
 
